@@ -630,9 +630,7 @@ async function submitSurvey(){
   Object.entries(answers).forEach(([k,v])=>payload[k]=v);
 
   try{
-    if(SCRIPT_URL && SCRIPT_URL!=='https://script.google.com/macros/s/AKfycbzn8Z1_3hiNdHmiYVs4YwlstxB3HXZdonM6g4OfAXtQXX9-tOunaMC39OqazG9a6x7iNA/exec'){
-      await fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    }
+    await fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   }catch(e){}
 
   document.getElementById('loadingOverlay').classList.remove('show');
