@@ -665,29 +665,20 @@ async function showResults(){
 
 async function loadResults(){
   const errEl = document.getElementById('resultsSub');
-  // ลอง Apps Script GET ก่อน ถ้าไม่ได้ fallback ไป gviz CSV
-  const sources = [
-    {type:'json', url: SCRIPT_URL + '?action=getData&t=' + Date.now()},
-    {type:'csv',  url: 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&sheet=Sheet1&t=' + Date.now()}
-  ];
-  for(const src of sources){
-    try{
-      const res = await fetch(src.url, {cache:'no-store'});
-      const text = await res.text();
-      let rows;
-      if(src.type === 'json'){
-        const json = JSON.parse(text);
-        if(!json.data || json.data.length < 2){ errEl.textContent='ยังไม่มีข้อมูลในระบบ'; return; }
-        rows = json.data;
-      } else {
-        rows = parseCSV(text);
-      }
-      if(!rows || rows.length < 2){ errEl.textContent='ยังไม่มีข้อมูลในระบบ'; return; }
-      renderResults(rows);
+  errEl.textContent = 'กำลังโหลดข้อมูล...';
+  try{
+    const url = SCRIPT_URL + '?action=getData&t=' + Date.now();
+    const res = await fetch(url, {cache:'no-store'});
+    const text = await res.text();
+    const json = JSON.parse(text);
+    if(!json.data || json.data.length < 1){
+      errEl.textContent = 'ยังไม่มีข้อมูลในระบบ';
       return;
-    }catch(e){ continue; }
+    }
+    renderResults(json.data);
+  }catch(err){
+    errEl.textContent = '❌ โหลดข้อมูลไม่ได้: ' + err.message;
   }
-  errEl.textContent='❌ โหลดข้อมูลไม่ได้ — กรุณาเปิดผ่าน GitHub Pages และตรวจสอบ Apps Script';
 }
 
 function parseCSV(text){
@@ -876,20 +867,13 @@ buildSurvey();
 // Initial load of result count
 (async()=>{
   try{
-    // ลอง Script GET ก่อน
     const res = await fetch(SCRIPT_URL + '?action=getData&t=' + Date.now(), {cache:'no-store'});
     const json = await res.json();
-    if(json.data && json.data.length > 1){
-      document.getElementById('respCount').textContent = json.data.length - 1;
-      return;
+    if(json.data && json.data.length > 0){
+      // ถ้าแถวแรกเป็น header ให้ -1, ถ้าไม่มี header ให้ใช้ตรง
+      const count = json.data[0][0] === 'timestamp' ? json.data.length - 1 : json.data.length;
+      if(count > 0) document.getElementById('respCount').textContent = count;
     }
-  }catch(e){}
-  try{
-    // Fallback: gviz CSV
-    const res2 = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&sheet=Sheet1', {cache:'no-store'});
-    const text = await res2.text();
-    const rows = parseCSV(text);
-    if(rows.length > 1) document.getElementById('respCount').textContent = rows.length - 1;
   }catch(e){}
 })();
 </script>
