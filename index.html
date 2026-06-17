@@ -365,7 +365,7 @@ tr:last-child td{border-bottom:none;font-weight:700;background:#f0f6ff}
 //  CONFIG
 // ============================================================
 // ⚠️  วาง URL ของ Google Apps Script ของท่านที่นี่
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUYysKpLTz-PxJgoDl8vrh2QSp4fhK6CUfadoGpAPrAC2pOupwZEqkbBA0CFhKUgzlrw/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzn8Z1_3hiNdHmiYVs4YwlstxB3HXZdonM6g4OfAXtQXX9-tOunaMC39OqazG9a6x7iNA/exec';
 
 // Google Sheets ID (สำหรับดึงข้อมูล)
 const SHEET_ID = '16CuJMDZUgO6Tap0FceeqQ66wmW_r9FhTpFMVYdg8p7I';
@@ -630,7 +630,7 @@ async function submitSurvey(){
   Object.entries(answers).forEach(([k,v])=>payload[k]=v);
 
   try{
-    if(SCRIPT_URL && SCRIPT_URL!=='https://script.google.com/macros/s/AKfycbyUYysKpLTz-PxJgoDl8vrh2QSp4fhK6CUfadoGpAPrAC2pOupwZEqkbBA0CFhKUgzlrw/exec'){
+    if(SCRIPT_URL && SCRIPT_URL!=='https://script.google.com/macros/s/AKfycbzn8Z1_3hiNdHmiYVs4YwlstxB3HXZdonM6g4OfAXtQXX9-tOunaMC39OqazG9a6x7iNA/exec'){
       await fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     }
   }catch(e){}
@@ -666,18 +666,30 @@ async function showResults(){
 }
 
 async function loadResults(){
-  try{
-    const url = SCRIPT_URL + '?action=getData';
-    const res = await fetch(url);
-    const json = await res.json();
-    if(!json.data || json.data.length < 2){
-      document.getElementById('resultsSub').textContent='ยังไม่มีข้อมูล';
+  const errEl = document.getElementById('resultsSub');
+  // ลอง Apps Script GET ก่อน ถ้าไม่ได้ fallback ไป gviz CSV
+  const sources = [
+    {type:'json', url: SCRIPT_URL + '?action=getData&t=' + Date.now()},
+    {type:'csv',  url: 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&sheet=Sheet1&t=' + Date.now()}
+  ];
+  for(const src of sources){
+    try{
+      const res = await fetch(src.url, {cache:'no-store'});
+      const text = await res.text();
+      let rows;
+      if(src.type === 'json'){
+        const json = JSON.parse(text);
+        if(!json.data || json.data.length < 2){ errEl.textContent='ยังไม่มีข้อมูลในระบบ'; return; }
+        rows = json.data;
+      } else {
+        rows = parseCSV(text);
+      }
+      if(!rows || rows.length < 2){ errEl.textContent='ยังไม่มีข้อมูลในระบบ'; return; }
+      renderResults(rows);
       return;
-    }
-    renderResults(json.data);
-  }catch(e){
-    document.getElementById('resultsSub').textContent='ไม่สามารถโหลดข้อมูลได้ — กรุณาตรวจสอบ Apps Script ('+e.message+')';
+    }catch(e){ continue; }
   }
+  errEl.textContent='❌ โหลดข้อมูลไม่ได้ — กรุณาเปิดผ่าน GitHub Pages และตรวจสอบ Apps Script';
 }
 
 function parseCSV(text){
@@ -866,10 +878,20 @@ buildSurvey();
 // Initial load of result count
 (async()=>{
   try{
-    const res = await fetch(SCRIPT_URL + '?action=getData');
+    // ลอง Script GET ก่อน
+    const res = await fetch(SCRIPT_URL + '?action=getData&t=' + Date.now(), {cache:'no-store'});
     const json = await res.json();
-    if(json.data && json.data.length > 1)
+    if(json.data && json.data.length > 1){
       document.getElementById('respCount').textContent = json.data.length - 1;
+      return;
+    }
+  }catch(e){}
+  try{
+    // Fallback: gviz CSV
+    const res2 = await fetch('https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&sheet=Sheet1', {cache:'no-store'});
+    const text = await res2.text();
+    const rows = parseCSV(text);
+    if(rows.length > 1) document.getElementById('respCount').textContent = rows.length - 1;
   }catch(e){}
 })();
 </script>
